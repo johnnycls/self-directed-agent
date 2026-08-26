@@ -50,19 +50,20 @@ files are handled the same way.
 
 The configuration file is read at startup and the editable files are reloaded
 before each new user input. Invalid values print an error and open the relevant
-file in your editor. Which provider settings are required depends on the selected
-model and provider. Positive limits are measured in characters.
+file in your editor. Provider-specific settings depend on the selected model
+and provider. The agent's own numeric settings must be present and positive.
+Character limits are measured in characters.
 
-| Setting | Purpose |
-| --- | --- |
-| `model` | LiteLLM provider-prefixed model, such as `anthropic/claude-sonnet-4-5` |
-| `api_key` | API key passed to LiteLLM when set |
-| `base_url` | API base URL passed to LiteLLM when set |
-| `provider_params` | Additional provider-specific LiteLLM parameters |
-| `history_window` | Number of recent history messages replayed to the model |
-| `max_context_message_chars` | Limit for non-user history content sent to the model |
-| `command_timeout_seconds` | Maximum time allowed for one shell command; defaults to `120` |
-| `max_command_output_chars` | Limit for command output retained in history/context; defaults to `20000` |
+| Setting                     | Purpose                                                                    |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `model`                     | LiteLLM provider-prefixed model, such as `anthropic/claude-sonnet-4-5`     |
+| `api_key`                   | API key passed to LiteLLM when set                                         |
+| `base_url`                  | API base URL passed to LiteLLM when set                                    |
+| `provider_params`           | Additional provider-specific LiteLLM parameters                            |
+| `history_window`            | Number of recent history messages replayed to the model (positive integer) |
+| `max_context_message_chars` | Limit for non-user history content sent to the model (positive integer)    |
+| `command_timeout_seconds`   | Maximum time allowed for one shell command (positive number)               |
+| `max_command_output_chars`  | Limit for command output retained in history/context (positive integer)    |
 
 When either character limit is exceeded, the agent keeps the first half and last
 half of the text with `\n...\n` between them. User messages are never truncated;

@@ -22,9 +22,6 @@ GLOBAL_FILES: tuple[str, ...] = (
     "history.jsonl",
 )
 
-DEFAULT_COMMAND_TIMEOUT_SECONDS: float = 120.0
-DEFAULT_MAX_COMMAND_OUTPUT_CHARS: int = 20_000
-
 PROVIDER_PARAM_TYPES: tuple[type, ...] = (str, int, float, bool)
 
 ScalarValue = str | int | float | bool
@@ -38,8 +35,8 @@ class Config:
     provider_params: dict[str, ScalarValue] | None
     history_window: int
     max_context_message_chars: int
-    command_timeout_seconds: float = DEFAULT_COMMAND_TIMEOUT_SECONDS
-    max_command_output_chars: int = DEFAULT_MAX_COMMAND_OUTPUT_CHARS
+    command_timeout_seconds: float
+    max_command_output_chars: int
 
 
 def packaged_data(name: str) -> Traversable:
@@ -92,7 +89,13 @@ def load_config() -> Config:
     context_limit: Any = raw.get("max_context_message_chars")
     missing: list[str] = [
         key
-        for key in ("model", "history_window", "max_context_message_chars")
+        for key in (
+            "model",
+            "history_window",
+            "max_context_message_chars",
+            "command_timeout_seconds",
+            "max_command_output_chars",
+        )
         if not raw.get(key)
     ]
     if missing:
@@ -111,13 +114,9 @@ def load_config() -> Config:
         raw.get("provider_params"), path
     )
     command_timeout_seconds: float = positive_number(
-        raw.get("command_timeout_seconds", DEFAULT_COMMAND_TIMEOUT_SECONDS),
-        "command_timeout_seconds",
-        path,
+        raw["command_timeout_seconds"], "command_timeout_seconds", path
     )
-    output_limit: Any = raw.get(
-        "max_command_output_chars", DEFAULT_MAX_COMMAND_OUTPUT_CHARS
-    )
+    output_limit: Any = raw["max_command_output_chars"]
     max_command_output_chars: int = positive_integer(
         output_limit,
         "max_command_output_chars",
