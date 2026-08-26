@@ -72,8 +72,9 @@ index it here instead.
 
 # Context budget
 
-Tool results longer than max_message_chars (see config.json for the current
-value) are truncated before you see them. For commands that may produce
+Non-user history content longer than max_context_message_chars (see config.json
+for the current value) is truncated before you see it. User messages are never
+truncated. For commands that may produce
 long output, slice it yourself up front (head, tail, grep / findstr /
 Select-String) instead of flooding the context.
 

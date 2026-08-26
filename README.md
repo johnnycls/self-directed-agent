@@ -37,25 +37,35 @@ First launch seeds `~/.self-directed-agent/config.json`:
   "base_url": "",
   "provider_params": {},
   "history_window": 50,
-  "max_message_chars": 1000
+  "max_context_message_chars": 1000,
+  "command_timeout_seconds": 120,
+  "max_command_output_chars": 20000
 }
 ```
 
 The agent immediately detects that `model` is not set, prints the error,
 and opens this file in your editor. Fill in `model` (and usually `api_key`),
-save, close it, and run `self-directed-agent` again.
+save, close it, and run `self-directed-agent` again. Other invalid configuration
+files are handled the same way.
 
-`model`, `history_window`, and `max_message_chars` are required; missing, empty, or invalid values fail at startup. `api_key`, `base_url`, and `provider_params` are optional — an empty string counts as unset.
+The configuration file is read at startup and the editable files are reloaded
+before each new user input. Invalid values print an error and open the relevant
+file in your editor. Positive limits are measured in characters.
 
-Required:
+| Setting | Required/default | Purpose |
+| --- | --- | --- |
+| `model` | Required | LiteLLM provider-prefixed model, such as `anthropic/claude-sonnet-4-5` |
+| `history_window` | Required | Number of recent history messages replayed to the model |
+| `max_context_message_chars` | Required | Limit for non-user history content sent to the model |
+| `command_timeout_seconds` | `120` | Maximum time allowed for one shell command |
+| `max_command_output_chars` | `20000` | Limit for command output retained in history/context |
+| `api_key` | Optional | API key passed to LiteLLM when set |
+| `base_url` | Optional | API base URL passed to LiteLLM when set |
+| `provider_params` | Optional | Additional provider-specific LiteLLM parameters |
 
-- `model` — LiteLLM provider-prefixed form, e.g. `anthropic/claude-sonnet-4-5`
-- `history_window` — how many recent turns are replayed to the model (positive integer)
-- `max_message_chars` — tool results longer than this are truncated before entering context (positive integer)
-
-Optional:
-
-- `api_key` / `base_url` — sent with every request when set
+When either character limit is exceeded, the agent keeps the first half and last
+half of the text with `\n...\n` between them. User messages are never truncated;
+`max_context_message_chars` applies to non-user history content only.
 
 Provider-specific parameters (AWS credentials, Vertex projects, Azure deployments, sampling settings...) go in `provider_params`, a free-form object splatted into every request:
 

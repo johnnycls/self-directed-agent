@@ -1,6 +1,5 @@
 """Agent loop: request building, response handling, tool dispatch."""
 
-import asyncio
 from typing import Any
 
 import litellm
@@ -60,20 +59,26 @@ def validate_llm(config: Config) -> None:
         )
 
 
-def agent_loop(
+async def agent_loop(
     config: Config,
     bash_tool: dict[str, Any],
     system_prompt: str,
 ) -> None:
     while True:
         messages: list[Message] = build_messages(
-            system_prompt, config.history_window, config.max_message_chars
+            system_prompt,
+            config.history_window,
+            config.max_context_message_chars,
         )
-        response: Any = asyncio.run(
-            acompletion(**request_kwargs(config, messages=messages, tools=[bash_tool]))
+        response: Any = await acompletion(
+            **request_kwargs(config, messages=messages, tools=[bash_tool])
         )
         message: Message = assistant_message(response.choices[0].message)
         commit_message(message)
         if not message.get("tool_calls"):
             return
-        asyncio.run(execute_tool_calls(message["tool_calls"]))
+        await execute_tool_calls(
+            message["tool_calls"],
+            timeout_seconds=config.command_timeout_seconds,
+            max_command_output_chars=config.max_command_output_chars,
+        )

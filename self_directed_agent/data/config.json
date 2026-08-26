@@ -4,5 +4,7 @@
   "base_url": "",
   "provider_params": {},
   "history_window": 50,
-  "max_message_chars": 1000
+  "max_context_message_chars": 1000,
+  "command_timeout_seconds": 120,
+  "max_command_output_chars": 20000
 }

@@ -1,0 +1,51 @@
+import os
+import shlex
+import subprocess
+import sys
+import unittest
+from unittest.mock import AsyncMock, patch
+
+from self_directed_agent.tools import execute_tool_calls, run_bash
+
+
+def python_command(source: str) -> str:
+    args = [sys.executable, "-c", source]
+    return subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+
+
+class ToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_output_is_bounded(self) -> None:
+        command = python_command("print('x' * 100)")
+        result = await run_bash(command, timeout_seconds=5, max_command_output_chars=20)
+        self.assertIn("x\n...\nx", result)
+        self.assertNotIn("output truncated at 20 characters", result)
+
+    async def test_command_timeout(self) -> None:
+        command = python_command("import time; time.sleep(2)")
+        result = await run_bash(command, timeout_seconds=0.2, max_command_output_chars=100)
+        self.assertIn("command timed out after", result)
+
+    async def test_tool_calls_are_committed_in_order(self) -> None:
+        calls = [
+            {"id": "one", "function": {"arguments": '{"command":"one"}'}},
+            {"id": "two", "function": {"arguments": '{"command":"two"}'}},
+        ]
+        observed: list[str] = []
+
+        async def fake_run(call: dict[str, object], *args: object) -> str:
+            observed.append(call["id"])
+            return f"result-{call['id']}"
+
+        with patch("self_directed_agent.tools.run_tool_call", new=AsyncMock(side_effect=fake_run)):
+            with patch("self_directed_agent.tools.commit_message") as commit:
+                await execute_tool_calls(calls)
+
+        self.assertEqual(observed, ["one", "two"])
+        self.assertEqual(
+            [call.args[0]["tool_call_id"] for call in commit.call_args_list],
+            ["one", "two"],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,5 +1,6 @@
 """Command-line entry point."""
 
+import asyncio
 import os
 import shlex
 import subprocess
@@ -19,8 +20,6 @@ from self_directed_agent.errors import AgentError
 from self_directed_agent.history import commit_message, load_history
 
 T = TypeVar("T")
-
-REPLAY_COUNT: int = 20
 
 
 def open_in_editor(path: str) -> None:
@@ -56,7 +55,8 @@ def run() -> None:
     config: Config = load_or_edit(load_config)
     load_or_edit(lambda: validate_llm(config))
     display.clear()
-    load_or_edit(lambda: display.print_history(load_history()[-REPLAY_COUNT:]))
+    history = load_or_edit(load_history)
+    display.print_history(history[-config.history_window:])
     while True:
         config = load_or_edit(load_config)
         system_prompt: str = load_or_edit(load_system_prompt)
@@ -64,7 +64,7 @@ def run() -> None:
         user_input: str = input()
         display.erase_line()
         commit_message({"role": "user", "content": user_input})
-        agent_loop(config, bash_tool, system_prompt)
+        asyncio.run(agent_loop(config, bash_tool, system_prompt))
 
 
 def main() -> None:
