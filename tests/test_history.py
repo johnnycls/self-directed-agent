@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from self_directed_agent import config
-from self_directed_agent.errors import AgentError
-from self_directed_agent.history import build_messages, load_history, repair_history
+from amnesia_genius import config
+from amnesia_genius.errors import AgentError
+from amnesia_genius.history import build_messages, load_history, repair_history
 
 
 def assistant_with_call(call_id: str) -> dict[str, object]:
@@ -42,7 +42,7 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(repair_history(messages), messages)
 
     def test_middle_truncation_handles_odd_and_small_limits(self) -> None:
-        from self_directed_agent.history import truncate_middle
+        from amnesia_genius.history import truncate_middle
 
         self.assertEqual(truncate_middle("abcdef", 5), "ab\n...\nef")
         self.assertEqual(truncate_middle("abcdef", 1), "\n...\n")

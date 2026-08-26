@@ -8,7 +8,7 @@ import signal
 import subprocess
 from typing import Any, Sequence
 
-from self_directed_agent.history import Message, commit_message, truncate_middle
+from amnesia_genius.history import Message, commit_message, truncate_middle
 
 INTERRUPTED_RESULT: str = "error: interrupted by user"
 TIMEOUT_EXIT_CODE: int = -1
@@ -174,7 +174,6 @@ def tool_message(call: dict[str, Any], content: str) -> Message:
 
 async def execute_tool_calls(
     tool_calls: Sequence[dict[str, Any]],
-    timeout_seconds: float = 120.0,
     max_command_output_chars: int = 20_000,
 ) -> None:
     """Execute independent calls concurrently and commit results in call order."""

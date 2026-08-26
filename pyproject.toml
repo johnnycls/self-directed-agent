@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "self-directed-agent"
+name = "amnesia-genius"
 version = "0.2.0"
 description = "A minimal self-directed agent that runs bash commands."
 readme = "README.md"
@@ -11,10 +11,10 @@ requires-python = ">=3.10,<3.15"
 dependencies = ["litellm>=1.98,<2"]
 
 [project.scripts]
-self-directed-agent = "self_directed_agent.cli:main"
+amnesia-genius = "amnesia_genius.cli:main"
 
 [tool.setuptools]
-packages = ["self_directed_agent"]
+packages = ["amnesia_genius"]
 
 [tool.setuptools.package-data]
-"self_directed_agent" = ["data/*"]
+"amnesia_genius" = ["data/*"]

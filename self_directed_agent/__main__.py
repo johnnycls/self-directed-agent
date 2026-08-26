@@ -1,3 +1,3 @@
-from self_directed_agent.cli import main
+from amnesia_genius.cli import main
 
 main()

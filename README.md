@@ -1,22 +1,22 @@
-# self-directed-agent
+# amnesia-genius
 
-> **Give a clever model a shell — and get out of its way.**
+> **The only harness that never goes stale is the one that barely exists.**
 
-A minimal agent harness built on one belief: **a sufficiently clever LLM needs almost no harness at all.**
+Every harness expires. The moment the model, the environment, or the user changes, its rules go stale. amnesia-genius was born from refusing to ship rules at all.
 
 ## Why
 
-Today's agent frameworks keep growing: plan mode, goal mode, auto memory compaction, sub-agents, agent teams, skills, guardrails... Every one of these features exists because models weren't smart enough to manage themselves. And every one of them constrains the model — it forces a prescribed workflow when the model might have a better one. As models get smarter, these harnesses stop being scaffolding and start being straitjackets.
+Traditional programming means humans define static rules while AI means algorithms compute strategy dynamically from the environment. The power of AI is the ability to solve problems that can hardly solved by static rules. Wrapping dynamic intelligence in a static harness obviously contradicts the very purpose of AI but we are all building harness.
 
-Bash is Turing complete. It can install packages, call APIs, edit files, compile code — do anything a computer can do. So an agent doesn't need dozens of bespoke tools; it needs **one tool that can do everything**, and the freedom to use it.
+Every feature we make (e.g. plan mode, goal mode, memory system, sub-agents) is static and fair strategy that help stupid llm to perform fairly well. However as models get smarter, these harnesses stop being scaffolding and start being straitjackets.
 
-self-directed-agent takes this to its logical conclusion. The LLM decides _everything_:
+So this project makes one design decision: make a minimal core that never changes, then design nothing else. Every operating decision belongs to the model, and it keeps re-deciding as conditions change:
 
-- **Its own memory** — what to remember, how to organize it, when to read it back
-- **Its own capabilities** — need OCR? Install tesseract. Need embeddings? pip install something. Can't see images? Ask the user for a multimodal API key. Nothing is impossible; some things are just not installed yet
-- **Its own program** — it can read and edit this agent's own source code, so future runs run on software it improved itself
+- **Its own memory** — there is no memory system here. A static memory manager can't be optimal in every situation; a blank `memory.md` and a free agent can. What to remember, how to organize it, when to read it back — decided by the model, per task.
+- **Its own capabilities** — nothing is impossible with bash: install packages, call APIs, compile code, write scripts. Whatever ability the agent lacks, it builds itself into its workspace, not into this code. 
+- **Its own workspace** — everything it learns, builds, and improves lives in `~/.amnesia-genius/`. Task after task, the workspace grows while the program running it stays exactly the same.
 
-The harness's only jobs: relay messages, execute bash, persist history, fail loudly when something breaks. No hidden prompts beyond one editable file, no silent retries, no magic.
+An agent doesn't need dozens of bespoke tools; it needs **one tool that can do everything**, and the freedom to use it. The harness's only jobs are relaying messages, executing bash, failing loudly when something breaks. 
 
 ## Install
 
@@ -28,7 +28,7 @@ Requires Python >=3.10,<3.15.
 
 ## Configure
 
-First launch seeds `~/.self-directed-agent/config.json`:
+First launch seeds `~/.amnesia-genius/config.json`:
 
 ```json
 {
@@ -36,16 +36,13 @@ First launch seeds `~/.self-directed-agent/config.json`:
   "api_key": "",
   "base_url": "",
   "provider_params": {},
-  "history_window": 50,
   "max_context_message_chars": 1000,
-  "command_timeout_seconds": 120,
-  "max_command_output_chars": 20000
 }
 ```
 
 The agent immediately detects that `model` is not set, prints the error,
 and opens this file in your editor. Fill in `model` (and usually `api_key`),
-save, close it, and run `self-directed-agent` again. Other invalid configuration
+save, close it, and run `amnesia-genius` again. Other invalid configuration
 files are handled the same way.
 
 The configuration file is read at startup and the editable files are reloaded
@@ -60,12 +57,9 @@ Character limits are measured in characters.
 | `api_key`                   | API key passed to LiteLLM when set                                         |
 | `base_url`                  | API base URL passed to LiteLLM when set                                    |
 | `provider_params`           | Additional provider-specific LiteLLM parameters                            |
-| `history_window`            | Number of recent history messages replayed to the model (positive integer) |
 | `max_context_message_chars` | Limit for non-user history content sent to the model (positive integer)    |
-| `command_timeout_seconds`   | Maximum time allowed for one shell command (positive number)               |
-| `max_command_output_chars`  | Limit for command output retained in history/context (positive integer)    |
 
-When either character limit is exceeded, the agent keeps the first half and last
+When character limit is exceeded, the agent keeps the first half and last
 half of the text with `\n...\n` between them. User messages are never truncated;
 `max_context_message_chars` applies to non-user history content only.
 
@@ -82,16 +76,8 @@ Provider-specific parameters (AWS credentials, Vertex projects, Azure deployment
 }
 ```
 
-Alternatively rely on each SDK's standard environment variables (`AWS_ACCESS_KEY_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, ...); anything LiteLLM accepts works. You know your provider — configure it your way.
-
 ## Run
 
 ```
-self-directed-agent
+amnesia-genius
 ```
-
-Type a task; the agent runs bash, remembers across sessions in `~/.self-directed-agent/`, and keeps going until you interrupt it (Ctrl+C is safe anytime).
-
-## Editing the agent
-
-Everything the agent knows about itself ships as editable templates in `~/.self-directed-agent/`: `system_prompt.md`, `memory.md`, `bash_tool.json`, `config.json`. All of them are reloaded every turn — the agent's own edits apply from its next message. It can even edit this agent's source code (Python changes apply after restart).

@@ -7,17 +7,17 @@ import subprocess
 import sys
 from typing import Any, Callable, TypeVar
 
-from self_directed_agent import display
-from self_directed_agent.agent import agent_loop, validate_llm
-from self_directed_agent.config import (
+from amnesia_genius import display
+from amnesia_genius.agent import agent_loop, validate_llm
+from amnesia_genius.config import (
     Config,
     ensure_global_files,
     load_bash_tool,
     load_config,
     load_system_prompt,
 )
-from self_directed_agent.errors import AgentError
-from self_directed_agent.history import commit_message, load_history
+from amnesia_genius.errors import AgentError
+from amnesia_genius.history import commit_message, load_history
 
 T = TypeVar("T")
 
@@ -43,7 +43,7 @@ def load_or_edit(loader: Callable[[], T]) -> T:
         print(
             f"Error: {e}\n"
             f"Opening {e.path} in your editor to fix.\n"
-            "Re-run self-directed-agent after saving.",
+            "Re-run amnesia-genius after saving.",
             file=sys.stderr,
         )
         open_in_editor(e.path)

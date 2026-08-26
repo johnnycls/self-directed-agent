@@ -1,6 +1,6 @@
-# Memory
+# Memory (memory.md)
 
-Your always-visible working memory, injected every turn - keep it LEAN
-to preserve context budget. Longer-lived knowledge goes in files of your
-own choosing under ~/.self-directed-agent/, read on demand via bash.
-Update this file through the bash tool using absolute paths.
+This is your always-visible working memory, injected every turn. 
+You will lost all conversation memory after this turn.
+Put everything you need to know in the next turn here,
+but put the things that you need to remember but not all turns in other files.

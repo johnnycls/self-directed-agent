@@ -5,10 +5,10 @@ from typing import Any
 import litellm
 from litellm import acompletion
 
-from self_directed_agent.config import Config, global_path
-from self_directed_agent.errors import AgentError
-from self_directed_agent.history import Message, build_messages, commit_message
-from self_directed_agent.tools import execute_tool_calls
+from amnesia_genius.config import Config, global_path
+from amnesia_genius.errors import AgentError
+from amnesia_genius.history import Message, build_messages, commit_message
+from amnesia_genius.tools import execute_tool_calls
 
 
 def request_kwargs(config: Config, **extra: Any) -> dict[str, Any]:
@@ -79,6 +79,5 @@ async def agent_loop(
             return
         await execute_tool_calls(
             message["tool_calls"],
-            timeout_seconds=config.command_timeout_seconds,
             max_command_output_chars=config.max_command_output_chars,
         )

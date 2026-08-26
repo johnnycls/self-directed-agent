@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from self_directed_agent import config
-from self_directed_agent.errors import AgentError
+from amnesia_genius import config
+from amnesia_genius.errors import AgentError
 
 
 class ConfigTests(unittest.TestCase):
@@ -14,7 +14,6 @@ class ConfigTests(unittest.TestCase):
             "model": "openai/test",
             "history_window": 10,
             "max_context_message_chars": 1000,
-            "command_timeout_seconds": 120,
             "max_command_output_chars": 20000,
         }
         values.update(updates)
@@ -25,7 +24,6 @@ class ConfigTests(unittest.TestCase):
             self.write_config(directory)
             with patch.object(config, "CONFIG_DIR", directory):
                 loaded = config.load_config()
-        self.assertEqual(loaded.command_timeout_seconds, 120.0)
         self.assertEqual(loaded.max_command_output_chars, 20_000)
 
     def test_execution_settings_are_required(self) -> None:

@@ -10,9 +10,9 @@ from typing import Any
 
 from importlib.resources.abc import Traversable
 
-from self_directed_agent.errors import AgentError
+from amnesia_genius.errors import AgentError
 
-CONFIG_DIR: str = os.path.join(os.path.expanduser("~"), ".self-directed-agent")
+CONFIG_DIR: str = os.path.join(os.path.expanduser("~"), ".amnesia-genius")
 
 GLOBAL_FILES: tuple[str, ...] = (
     "config.json",
@@ -35,12 +35,11 @@ class Config:
     provider_params: dict[str, ScalarValue] | None
     history_window: int
     max_context_message_chars: int
-    command_timeout_seconds: float
     max_command_output_chars: int
 
 
 def packaged_data(name: str) -> Traversable:
-    return files("self_directed_agent").joinpath("data", name)
+    return files("amnesia_genius").joinpath("data", name)
 
 
 def global_path(filename: str) -> str:

@@ -3,9 +3,9 @@
 import json
 from typing import Any
 
-from self_directed_agent import display
-from self_directed_agent.config import global_path, read_text
-from self_directed_agent.errors import AgentError
+from amnesia_genius import display
+from amnesia_genius.config import global_path, read_text
+from amnesia_genius.errors import AgentError
 
 Message = dict[str, Any]
 VALID_ROLES = {"user", "assistant", "tool"}
