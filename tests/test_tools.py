@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shlex
 import subprocess
@@ -25,22 +26,26 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         result = await run_bash(command, timeout_seconds=0.2, max_command_output_chars=100)
         self.assertIn("command timed out after", result)
 
-    async def test_tool_calls_are_committed_in_order(self) -> None:
+    async def test_tool_calls_run_concurrently_and_commit_in_order(self) -> None:
         calls = [
             {"id": "one", "function": {"arguments": '{"command":"one"}'}},
             {"id": "two", "function": {"arguments": '{"command":"two"}'}},
         ]
         observed: list[str] = []
+        all_started = asyncio.Event()
 
         async def fake_run(call: dict[str, object], *args: object) -> str:
             observed.append(call["id"])
+            if len(observed) == len(calls):
+                all_started.set()
+            await all_started.wait()
             return f"result-{call['id']}"
 
         with patch("self_directed_agent.tools.run_tool_call", new=AsyncMock(side_effect=fake_run)):
             with patch("self_directed_agent.tools.commit_message") as commit:
-                await execute_tool_calls(calls)
+                await asyncio.wait_for(execute_tool_calls(calls), timeout=1)
 
-        self.assertEqual(observed, ["one", "two"])
+        self.assertEqual(set(observed), {"one", "two"})
         self.assertEqual(
             [call.args[0]["tool_call_id"] for call in commit.call_args_list],
             ["one", "two"],

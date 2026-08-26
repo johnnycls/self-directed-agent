@@ -177,14 +177,29 @@ async def execute_tool_calls(
     timeout_seconds: float = 120.0,
     max_command_output_chars: int = 20_000,
 ) -> None:
-    """Execute calls in response order so commands cannot race each other."""
-    for index, call in enumerate(tool_calls):
-        try:
-            result: str = await run_tool_call(
-                call, timeout_seconds, max_command_output_chars
-            )
-        except BaseException:
-            for remaining in tool_calls[index:]:
-                commit_message(tool_message(remaining, INTERRUPTED_RESULT))
-            raise
-        commit_message(tool_message(call, result))
+    """Execute independent calls concurrently and commit results in call order."""
+    tasks = [
+        asyncio.create_task(
+            run_tool_call(call, timeout_seconds, max_command_output_chars)
+        )
+        for call in tool_calls
+    ]
+    try:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        for call in tool_calls:
+            commit_message(tool_message(call, INTERRUPTED_RESULT))
+        raise
+
+    first_error: BaseException | None = next(
+        (result for result in results if isinstance(result, BaseException)),
+        None,
+    )
+    for call, result in zip(tool_calls, results):
+        content = INTERRUPTED_RESULT if isinstance(result, BaseException) else result
+        commit_message(tool_message(call, content))
+    if first_error is not None:
+        raise first_error
