@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from self_directed_agent import display
 from self_directed_agent.config import global_path, read_text
 from self_directed_agent.errors import AgentError
 
@@ -59,15 +60,9 @@ def append_history(message: Message) -> None:
         f.write(json.dumps(message) + "\n")
 
 
-def print_message(message: Message) -> None:
-    role: str = message["role"]
-    content: str = message["content"]
-    print(f"{role}: {content}")
-
-
 def commit_message(message: Message) -> None:
     append_history(message)
-    print_message(message)
+    display.print_message(message)
 
 
 def load_memory() -> str:

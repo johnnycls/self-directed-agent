@@ -6,6 +6,7 @@ import subprocess
 import sys
 from typing import Any, Callable, TypeVar
 
+from self_directed_agent import display
 from self_directed_agent.agent import agent_loop, validate_llm
 from self_directed_agent.config import (
     Config,
@@ -15,9 +16,11 @@ from self_directed_agent.config import (
     load_system_prompt,
 )
 from self_directed_agent.errors import AgentError
-from self_directed_agent.history import append_history
+from self_directed_agent.history import commit_message, load_history
 
 T = TypeVar("T")
+
+REPLAY_COUNT: int = 20
 
 
 def open_in_editor(path: str) -> None:
@@ -52,12 +55,15 @@ def run() -> None:
     ensure_global_files()
     config: Config = load_or_edit(load_config)
     load_or_edit(lambda: validate_llm(config))
+    display.clear()
+    load_or_edit(lambda: display.print_history(load_history()[-REPLAY_COUNT:]))
     while True:
         config = load_or_edit(load_config)
         system_prompt: str = load_or_edit(load_system_prompt)
         bash_tool: dict[str, Any] = load_or_edit(load_bash_tool)
-        user_input: str = input("user: ")
-        append_history({"role": "user", "content": user_input})
+        user_input: str = input()
+        display.erase_line()
+        commit_message({"role": "user", "content": user_input})
         agent_loop(config, bash_tool, system_prompt)
 
 
