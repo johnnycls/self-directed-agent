@@ -7,11 +7,12 @@ from litellm import acompletion
 
 from amnesia_genius.config import Config, global_path
 from amnesia_genius.errors import AgentError
-from amnesia_genius.history import Message, build_messages, commit_message
+from amnesia_genius.message import Message, build_messages, commit_message
 from amnesia_genius.tools import execute_tool_calls
 
 
-def request_kwargs(config: Config, **extra: Any) -> dict[str, Any]:
+def _request_kwargs(config: Config, **extra: Any) -> dict[str, Any]:
+    """Build the litellm completion kwargs from config and extra overrides."""
     kwargs: dict[str, Any] = {"model": config.model}
     if config.api_key is not None:
         kwargs["api_key"] = config.api_key
@@ -23,7 +24,8 @@ def request_kwargs(config: Config, **extra: Any) -> dict[str, Any]:
     return kwargs
 
 
-def assistant_message(message: Any) -> Message:
+def _assistant_message(message: Any) -> Message:
+    """Convert a litellm response message into our assistant Message dict."""
     result: Message = {"role": "assistant", "content": message.content or ""}
     tool_calls: list[dict[str, Any]] = [
         {
@@ -63,21 +65,24 @@ async def agent_loop(
     config: Config,
     bash_tool: dict[str, Any],
     system_prompt: str,
+    user_input: str,
 ) -> None:
+    """Drive one user turn: call the LLM, run tool calls, repeat until done."""
+    turn_messages: list[Message] = []
     while True:
         messages: list[Message] = build_messages(
             system_prompt,
-            config.history_window,
+            user_input,
+            turn_messages,
             config.max_context_message_chars,
         )
         response: Any = await acompletion(
-            **request_kwargs(config, messages=messages, tools=[bash_tool])
+            **_request_kwargs(config, messages=messages, tools=[bash_tool])
         )
-        message: Message = assistant_message(response.choices[0].message)
+        message: Message = _assistant_message(response.choices[0].message)
+        turn_messages.append(message)
         commit_message(message)
         if not message.get("tool_calls"):
             return
-        await execute_tool_calls(
-            message["tool_calls"],
-            max_command_output_chars=config.max_command_output_chars,
-        )
+        tool_messages: list[Message] = await execute_tool_calls(message["tool_calls"])
+        turn_messages.extend(tool_messages)

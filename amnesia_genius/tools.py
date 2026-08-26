@@ -8,7 +8,7 @@ import signal
 import subprocess
 from typing import Any, Sequence
 
-from amnesia_genius.history import Message, commit_message, truncate_middle
+from amnesia_genius.message import Message, commit_message, truncate_middle
 
 INTERRUPTED_RESULT: str = "error: interrupted by user"
 TIMEOUT_EXIT_CODE: int = -1
@@ -43,6 +43,7 @@ async def _read_bounded(
 
 
 def _process_options() -> dict[str, Any]:
+    """Return subprocess options that start an independent process group."""
     if os.name == "nt":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
     return {"start_new_session": True}
@@ -79,6 +80,7 @@ def _format_output(
     truncated: bool,
     max_command_output_chars: int,
 ) -> str:
+    """Combine and bound command output, truncating when over the limit."""
     output = (stdout + stderr).strip() or "(no output)"
     if truncated or len(output) > max_command_output_chars:
         output = truncate_middle(output, max_command_output_chars)
@@ -90,6 +92,7 @@ async def run_bash(
     timeout_seconds: float = 120.0,
     max_command_output_chars: int = 20_000,
 ) -> str:
+    """Run a shell command and return its exit code plus combined output."""
     proc: asyncio.subprocess.Process = await asyncio.create_subprocess_shell(
         command,
         stdout=asyncio.subprocess.PIPE,
@@ -136,7 +139,8 @@ async def run_bash(
     return f"exit code: {proc.returncode}\noutput: {output}"
 
 
-def parse_command(raw_arguments: str) -> str:
+def _parse_command(raw_arguments: str) -> str:
+    """Extract the 'command' string from a tool-call arguments JSON blob."""
     arguments: Any = json.loads(raw_arguments)
     if not isinstance(arguments, dict):
         raise TypeError("tool arguments must be a JSON object")
@@ -151,8 +155,9 @@ async def run_tool_call(
     timeout_seconds: float = 120.0,
     max_command_output_chars: int = 20_000,
 ) -> str:
+    """Parse a tool call and run its bash command, returning the result text."""
     try:
-        command: str = parse_command(call["function"]["arguments"])
+        command: str = _parse_command(call["function"]["arguments"])
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         return (
             "error: could not parse tool arguments "
@@ -164,7 +169,8 @@ async def run_tool_call(
     )
 
 
-def tool_message(call: dict[str, Any], content: str) -> Message:
+def _tool_message(call: dict[str, Any], content: str) -> Message:
+    """Build a tool-result message matching the given tool call."""
     return {
         "role": "tool",
         "tool_call_id": call["id"],
@@ -174,8 +180,9 @@ def tool_message(call: dict[str, Any], content: str) -> Message:
 
 async def execute_tool_calls(
     tool_calls: Sequence[dict[str, Any]],
+    timeout_seconds: float = 120.0,
     max_command_output_chars: int = 20_000,
-) -> None:
+) -> list[Message]:
     """Execute independent calls concurrently and commit results in call order."""
     tasks = [
         asyncio.create_task(
@@ -190,15 +197,19 @@ async def execute_tool_calls(
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         for call in tool_calls:
-            commit_message(tool_message(call, INTERRUPTED_RESULT))
+            commit_message(_tool_message(call, INTERRUPTED_RESULT))
         raise
 
     first_error: BaseException | None = next(
         (result for result in results if isinstance(result, BaseException)),
         None,
     )
+    tool_messages: list[Message] = []
     for call, result in zip(tool_calls, results):
         content = INTERRUPTED_RESULT if isinstance(result, BaseException) else result
-        commit_message(tool_message(call, content))
+        message = _tool_message(call, content)
+        tool_messages.append(message)
+        commit_message(message)
     if first_error is not None:
         raise first_error
+    return tool_messages

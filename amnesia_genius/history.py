@@ -1,31 +1,23 @@
-"""Conversation history persistence, repair, and message assembly."""
+"""Conversation history persistence and repair."""
 
 import json
 from typing import Any
 
-from amnesia_genius import display
-from amnesia_genius.config import global_path, read_text
+from amnesia_genius.config import global_path
 from amnesia_genius.errors import AgentError
 
 Message = dict[str, Any]
 VALID_ROLES = {"user", "assistant", "tool"}
 
 
-def truncate_middle(text: str, max_chars: int) -> str:
-    """Keep both ends of text when it exceeds the configured limit."""
-    if len(text) <= max_chars:
-        return text
-    half = max_chars // 2
-    tail = text[-half:] if half else ""
-    return f"{text[:half]}\n...\n{tail}"
-
-
-def history_file() -> str:
+def _history_file() -> str:
+    """Return the path of the persisted conversation log (history.jsonl)."""
     return global_path("history.jsonl")
 
 
 def load_history() -> list[Message]:
-    path: str = history_file()
+    """Load, repair, and validate the conversation log, or raise AgentError."""
+    path: str = _history_file()
     messages: list[Message] = []
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -36,16 +28,17 @@ def load_history() -> list[Message]:
                     raise AgentError(
                         f"Malformed JSON in {path} on line {e.lineno}", path=path
                     ) from e
-                validate_message(message, line_number, path)
+                _validate_message(message, line_number, path)
                 messages.append(message)
     except OSError as e:
         raise AgentError(f"Cannot read history file {path}: {e}", path=path) from e
     repaired = repair_history(messages)
-    validate_history_sequence(repaired, path)
+    _validate_history_sequence(repaired, path)
     return repaired
 
 
-def validate_message(message: Any, line_number: int, path: str) -> None:
+def _validate_message(message: Any, line_number: int, path: str) -> None:
+    """Validate a single history message's shape and raise AgentError if invalid."""
     prefix = f"Invalid history message on line {line_number}"
     if not isinstance(message, dict):
         raise AgentError(f"{prefix}: expected a JSON object.", path=path)
@@ -93,12 +86,14 @@ def validate_message(message: Any, line_number: int, path: str) -> None:
             raise AgentError(f"{prefix}: tool call ids must be unique.", path=path)
 
 
-def tool_call_ids(message: Message) -> list[str]:
+def _tool_call_ids(message: Message) -> list[str]:
+    """Return the tool call ids declared by an assistant message."""
     calls: Any = message.get("tool_calls", [])
     return [call["id"] for call in calls if isinstance(call, dict) and "id" in call]
 
 
-def validate_history_sequence(messages: list[Message], path: str) -> None:
+def _validate_history_sequence(messages: list[Message], path: str) -> None:
+    """Ensure tool results follow their assistant calls and none are missing."""
     pending: set[str] = set()
     for index, message in enumerate(messages, 1):
         role = message["role"]
@@ -117,7 +112,7 @@ def validate_history_sequence(messages: list[Message], path: str) -> None:
                     path=path,
                 )
             if role == "assistant":
-                pending = set(tool_call_ids(message))
+                pending = set(_tool_call_ids(message))
 
     if pending:
         raise AgentError(
@@ -142,47 +137,17 @@ def repair_history(messages: list[Message]) -> list[Message]:
         if not head_len:
             return []
         anchor = messages[head_len - 1]
-        expected = set(tool_call_ids(anchor))
+        expected = set(_tool_call_ids(anchor))
         collected = [message["tool_call_id"] for message in trailing]
         if expected and len(collected) == len(set(collected)) and set(collected) == expected:
             return messages
         return messages[: head_len - 1] if expected else messages[:head_len]
 
-    expected = set(tool_call_ids(messages[-1]))
+    expected = set(_tool_call_ids(messages[-1]))
     return messages[:-1] if expected else messages
 
 
 def append_history(message: Message) -> None:
-    with open(history_file(), "a", encoding="utf-8") as f:
+    """Append a single message as one JSON line to the conversation log."""
+    with open(_history_file(), "a", encoding="utf-8") as f:
         f.write(json.dumps(message) + "\n")
-
-
-def commit_message(message: Message) -> None:
-    append_history(message)
-    display.print_message(message)
-
-
-def load_memory() -> str:
-    return read_text(global_path("memory.md"))
-
-
-def build_messages(
-    system_prompt: str, history_window: int, max_context_message_chars: int
-) -> list[Message]:
-    recent: list[Message] = load_history()[-history_window:]
-    sliced: list[Message] = []
-    for message in recent:
-        content: Any = message.get("content")
-        if (
-            message.get("role") != "user"
-            and isinstance(content, str)
-            and len(content) > max_context_message_chars
-        ):
-            message = {
-                **message,
-                "content": truncate_middle(content, max_context_message_chars),
-            }
-        sliced.append(message)
-    return [
-        {"role": "system", "content": f"{system_prompt}\n\n{load_memory()}"},
-    ] + sliced

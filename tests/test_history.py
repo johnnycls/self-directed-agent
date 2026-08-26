@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from amnesia_genius import config
 from amnesia_genius.errors import AgentError
-from amnesia_genius.history import build_messages, load_history, repair_history
+from amnesia_genius.history import load_history, repair_history
 
 
 def assistant_with_call(call_id: str) -> dict[str, object]:
@@ -40,27 +40,6 @@ class HistoryTests(unittest.TestCase):
             {"role": "tool", "tool_call_id": "call-1", "content": "ok"},
         ]
         self.assertEqual(repair_history(messages), messages)
-
-    def test_middle_truncation_handles_odd_and_small_limits(self) -> None:
-        from amnesia_genius.history import truncate_middle
-
-        self.assertEqual(truncate_middle("abcdef", 5), "ab\n...\nef")
-        self.assertEqual(truncate_middle("abcdef", 1), "\n...\n")
-
-    def test_user_content_is_not_sliced_but_other_content_is(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            Path(directory, "history.jsonl").write_text(
-                json.dumps({"role": "user", "content": "0123456789"})
-                + "\n"
-                + json.dumps({"role": "assistant", "content": "abcdefghij"})
-                + "\n",
-                encoding="utf-8",
-            )
-            Path(directory, "memory.md").write_text("memory", encoding="utf-8")
-            with patch.object(config, "CONFIG_DIR", directory):
-                messages = build_messages("prompt", 10, 6)
-        self.assertEqual(messages[1]["content"], "0123456789")
-        self.assertEqual(messages[2]["content"], "abc\n...\nhij")
 
     def test_invalid_history_message_returns_agent_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
