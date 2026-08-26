@@ -1,0 +1,17 @@
+{
+  "type": "function",
+  "function": {
+    "name": "bash",
+    "description": "Run a shell command and return its exit code plus combined stdout/stderr as plain text. Use it for everything: file operations, running scripts, API calls, and memory management. Be aware of the platform you are running on, as some commands may not be available or behave differently.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "The bash command to run."
+        }
+      },
+      "required": ["command"]
+    }
+  }
+}

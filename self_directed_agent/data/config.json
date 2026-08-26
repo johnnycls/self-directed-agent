@@ -1,0 +1,8 @@
+{
+  "model": "",
+  "api_key": "",
+  "base_url": "",
+  "provider_params": {},
+  "history_window": 50,
+  "max_message_chars": 1000
+}
