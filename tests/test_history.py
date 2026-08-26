@@ -48,6 +48,32 @@ class HistoryTests(unittest.TestCase):
                 with self.assertRaises(AgentError):
                     load_history()
 
+    def test_midfile_corruption_returns_agent_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lines = (
+                '{"role": "user", "content": "hi"}\n'
+                "not-json\n"
+                '{"role": "user", "content": "bye"}\n'
+            )
+            Path(directory, "history.jsonl").write_text(lines, encoding="utf-8")
+            with patch.object(config, "CONFIG_DIR", directory):
+                with self.assertRaises(AgentError):
+                    load_history()
+
+    def test_trailing_incomplete_transaction_is_repaired(self) -> None:
+        assistant = assistant_with_call("call-1")
+        lines = (
+            json.dumps({"role": "user", "content": "run it"})
+            + "\n"
+            + json.dumps(assistant)
+            + "\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "history.jsonl").write_text(lines, encoding="utf-8")
+            with patch.object(config, "CONFIG_DIR", directory):
+                repaired = load_history()
+        self.assertEqual(repaired, [{"role": "user", "content": "run it"}])
+
 
 if __name__ == "__main__":
     unittest.main()

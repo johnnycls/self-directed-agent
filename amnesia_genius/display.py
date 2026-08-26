@@ -31,7 +31,9 @@ _enable_ansi()
 
 
 def clear() -> None:
-    """Clear the terminal screen."""
+    """Clear the terminal screen (only when attached to a real terminal)."""
+    if not sys.stdout.isatty():
+        return
     sys.stdout.write("\x1b[2J\x1b[1H")
     sys.stdout.flush()
 

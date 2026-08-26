@@ -17,7 +17,7 @@ from amnesia_genius.config import (
     load_system_prompt,
 )
 from amnesia_genius.errors import AgentError
-from amnesia_genius.history import append_history
+from amnesia_genius.history import append_history, load_history
 
 T = TypeVar("T")
 
@@ -55,6 +55,11 @@ def _load_or_edit(loader: Callable[[], T]) -> T:
 def _run() -> None:
     """Seed files, then loop: read input, append it, run the agent turn."""
     ensure_global_files()
+    try:
+        load_history()
+    except AgentError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     config: Config = _load_or_edit(load_config)
     _load_or_edit(lambda: validate_llm(config))
     display.clear()
@@ -62,7 +67,7 @@ def _run() -> None:
         config = _load_or_edit(load_config)
         system_prompt: str = _load_or_edit(load_system_prompt)
         bash_tool: dict[str, Any] = _load_or_edit(load_bash_tool)
-        user_input: str = input()
+        user_input: str = input("> ")
         append_history({"role": "user", "content": user_input})
         asyncio.run(agent_loop(config, bash_tool, system_prompt, user_input))
 
@@ -74,6 +79,9 @@ def main() -> None:
     except (KeyboardInterrupt, EOFError):
         print()
     except AgentError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:  # noqa: BLE001 - fail loudly but cleanly
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 

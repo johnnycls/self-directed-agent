@@ -1,45 +1,15 @@
 """Bash command execution and tool-call dispatch."""
 
 import asyncio
-import codecs
 import json
 import os
 import signal
 import subprocess
 from typing import Any, Sequence
 
-from amnesia_genius.message import Message, commit_message, truncate_middle
+from amnesia_genius.message import Message, commit_message
 
 INTERRUPTED_RESULT: str = "error: interrupted by user"
-TIMEOUT_EXIT_CODE: int = -1
-
-
-async def _read_bounded(
-    stream: asyncio.StreamReader, max_chars: int
-) -> tuple[str, bool]:
-    """Drain a pipe while retaining its beginning and end."""
-    retention = max_chars * 2
-    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-    head = ""
-    tail = ""
-    total_chars = 0
-    while True:
-        chunk = await stream.read(64 * 1024)
-        if not chunk:
-            break
-        text = decoder.decode(chunk)
-        total_chars += len(text)
-        if len(head) < retention:
-            head += text[: retention - len(head)]
-        tail = (tail + text)[-retention:]
-    final_text = decoder.decode(b"", final=True)
-    total_chars += len(final_text)
-    if len(head) < retention:
-        head += final_text[: retention - len(head)]
-    tail = (tail + final_text)[-retention:]
-    if total_chars <= retention:
-        return head, False
-    return head + tail, True
 
 
 def _process_options() -> dict[str, Any]:
@@ -74,25 +44,12 @@ async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
     await proc.wait()
 
 
-def _format_output(
-    stdout: str,
-    stderr: str,
-    truncated: bool,
-    max_command_output_chars: int,
-) -> str:
-    """Combine and bound command output, truncating when over the limit."""
-    output = (stdout + stderr).strip() or "(no output)"
-    if truncated or len(output) > max_command_output_chars:
-        output = truncate_middle(output, max_command_output_chars)
-    return output
+async def run_bash(command: str) -> str:
+    """Run a shell command and return its exit code plus combined output.
 
-
-async def run_bash(
-    command: str,
-    timeout_seconds: float = 120.0,
-    max_command_output_chars: int = 20_000,
-) -> str:
-    """Run a shell command and return its exit code plus combined output."""
+    The command's own timeout and output shaping are the agent's job (e.g. via
+    the shell `timeout` and `head` utilities); the harness captures everything.
+    """
     proc: asyncio.subprocess.Process = await asyncio.create_subprocess_shell(
         command,
         stdout=asyncio.subprocess.PIPE,
@@ -101,41 +58,14 @@ async def run_bash(
     )
     assert proc.stdout is not None
     assert proc.stderr is not None
-    stdout_task = asyncio.create_task(
-        _read_bounded(proc.stdout, max_command_output_chars)
-    )
-    stderr_task = asyncio.create_task(
-        _read_bounded(proc.stderr, max_command_output_chars)
-    )
     try:
-        await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
-    except asyncio.TimeoutError:
-        await _terminate_process(proc)
-        stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
-        output = _format_output(
-            stdout[0],
-            stderr[0],
-            stdout[1] or stderr[1],
-            max_command_output_chars,
-        )
-        return (
-            f"exit code: {TIMEOUT_EXIT_CODE}\n"
-            f"output: command timed out after {timeout_seconds:g} seconds\n{output}"
-        )
+        stdout, stderr = await proc.communicate()
     except asyncio.CancelledError:
         await _terminate_process(proc)
-        stdout_task.cancel()
-        stderr_task.cancel()
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
         raise
-
-    stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
-    output = _format_output(
-        stdout[0],
-        stderr[0],
-        stdout[1] or stderr[1],
-        max_command_output_chars,
-    )
+    output: str = (
+        stdout.decode("utf-8", "replace") + stderr.decode("utf-8", "replace")
+    ).strip() or "(no output)"
     return f"exit code: {proc.returncode}\noutput: {output}"
 
 
@@ -150,11 +80,7 @@ def _parse_command(raw_arguments: str) -> str:
     return command
 
 
-async def run_tool_call(
-    call: dict[str, Any],
-    timeout_seconds: float = 120.0,
-    max_command_output_chars: int = 20_000,
-) -> str:
+async def run_tool_call(call: dict[str, Any]) -> str:
     """Parse a tool call and run its bash command, returning the result text."""
     try:
         command: str = _parse_command(call["function"]["arguments"])
@@ -164,9 +90,7 @@ async def run_tool_call(
             f"({type(e).__name__}: {e}). "
             'Expected a JSON object with a string "command" field.'
         )
-    return await run_bash(
-        command, timeout_seconds, max_command_output_chars
-    )
+    return await run_bash(command)
 
 
 def _tool_message(call: dict[str, Any], content: str) -> Message:
@@ -180,15 +104,10 @@ def _tool_message(call: dict[str, Any], content: str) -> Message:
 
 async def execute_tool_calls(
     tool_calls: Sequence[dict[str, Any]],
-    timeout_seconds: float = 120.0,
-    max_command_output_chars: int = 20_000,
 ) -> list[Message]:
     """Execute independent calls concurrently and commit results in call order."""
     tasks = [
-        asyncio.create_task(
-            run_tool_call(call, timeout_seconds, max_command_output_chars)
-        )
-        for call in tool_calls
+        asyncio.create_task(run_tool_call(call)) for call in tool_calls
     ]
     try:
         results = await asyncio.gather(*tasks, return_exceptions=True)

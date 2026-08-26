@@ -15,16 +15,12 @@ def python_command(source: str) -> str:
 
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_output_is_bounded(self) -> None:
+    async def test_full_output_is_returned(self) -> None:
         command = python_command("print('x' * 100)")
-        result = await run_bash(command, timeout_seconds=5, max_command_output_chars=20)
-        self.assertIn("x\n...\nx", result)
-        self.assertNotIn("output truncated at 20 characters", result)
-
-    async def test_command_timeout(self) -> None:
-        command = python_command("import time; time.sleep(2)")
-        result = await run_bash(command, timeout_seconds=0.2, max_command_output_chars=100)
-        self.assertIn("command timed out after", result)
+        result = await run_bash(command)
+        self.assertIn("x" * 100, result)
+        self.assertIn("exit code: 0", result)
+        self.assertNotIn("...", result)
 
     async def test_tool_calls_run_concurrently_and_commit_in_order(self) -> None:
         calls = [

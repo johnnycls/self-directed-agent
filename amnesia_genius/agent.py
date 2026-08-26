@@ -53,6 +53,7 @@ def validate_llm(config: Config) -> None:
         not result.get("keys_in_environment", True)
         and result.get("missing_keys")
         and config.api_key is None
+        and not config.provider_params
     ):
         raise AgentError(
             f"LLM config check failed: set {' or '.join(result['missing_keys'])} "

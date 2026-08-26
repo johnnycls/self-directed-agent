@@ -1,9 +1,25 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import ModuleType
+from unittest.mock import MagicMock, patch
 
+
+def _stub_litellm() -> None:
+    """Provide a lightweight litellm stand-in so agent imports without the dep."""
+    if "litellm" in sys.modules:
+        return
+    fake = ModuleType("litellm")
+    fake.validate_environment = MagicMock(return_value={"keys_in_environment": True})
+    fake.acompletion = MagicMock()
+    sys.modules["litellm"] = fake
+
+
+_stub_litellm()
+
+import amnesia_genius.agent as agent
 from amnesia_genius import config
 from amnesia_genius.errors import AgentError
 
@@ -33,6 +49,34 @@ class ConfigTests(unittest.TestCase):
             with patch.object(config, "CONFIG_DIR", directory):
                 with self.assertRaises(AgentError):
                     config.load_bash_tool()
+
+    def test_provider_params_satisfy_missing_env_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            self.write_config(
+                directory,
+                model="bedrock/us.anthropic.claude-sonnet-4-5",
+                api_key="",
+                provider_params={
+                    "aws_access_key_id": "AKIA",
+                    "aws_secret_access_key": "x",
+                    "aws_region_name": "us-east-1",
+                },
+            )
+            with patch.object(config, "CONFIG_DIR", directory):
+                cfg = config.load_config()
+            with patch.object(
+                agent.litellm,
+                "validate_environment",
+                return_value={
+                    "keys_in_environment": False,
+                    "missing_keys": ["AWS_ACCESS_KEY_ID"],
+                },
+            ):
+                agent.validate_llm(cfg)
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 
 if __name__ == "__main__":
