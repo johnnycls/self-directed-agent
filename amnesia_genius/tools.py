@@ -116,4 +116,7 @@ async def execute_tool_calls(
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         raise
-    return [_tool_message(call, result) for call, result in zip(tool_calls, results)]
+    return [
+        _tool_message(call, result)
+        for call, result in zip(tool_calls, results, strict=True)
+    ]

@@ -2,7 +2,7 @@ import contextlib
 import io
 import unittest
 
-from amnesia_genius.display import TerminalRenderer, _tool_command, _print_tool
+from amnesia_genius.display import TerminalRenderer, _print_tool, _tool_command
 from amnesia_genius.events import AssistantMessage, Delta, ToolResult
 
 

@@ -4,9 +4,13 @@ import json
 import os
 import shutil
 from dataclasses import dataclass
-from importlib.abc import Traversable
 from importlib.resources import files
 from typing import Any
+
+try:
+    from importlib.resources.abc import Traversable  # Python >= 3.11
+except ImportError:  # Python 3.10
+    from importlib.abc import Traversable
 
 from amnesia_genius.errors import AgentError
 
@@ -49,7 +53,7 @@ def global_path(filename: str, config_dir: str | None = None) -> str:
 def read_text(path: str) -> str:
     """Read a UTF-8 text file, raising AgentError on failure."""
     try:
-        with open(path, "r", encoding="utf-8-sig") as f:
+        with open(path, encoding="utf-8-sig") as f:
             return f.read()
     except OSError as e:
         raise AgentError(f"Cannot read file {path}: {e}", path=path) from e
@@ -58,7 +62,7 @@ def read_text(path: str) -> str:
 def _read_json(path: str) -> Any:
     """Read and parse a JSON file, raising AgentError on missing or invalid JSON."""
     try:
-        with open(path, "r", encoding="utf-8-sig") as f:
+        with open(path, encoding="utf-8-sig") as f:
             return json.load(f)
     except OSError as e:
         raise AgentError(f"Cannot read file {path}: {e}", path=path) from e

@@ -2,7 +2,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from amnesia_genius.errors import AgentError
 from amnesia_genius.kernel import Agent
