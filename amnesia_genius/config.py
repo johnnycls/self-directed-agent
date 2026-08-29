@@ -5,7 +5,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from importlib.resources import files
-from typing import Any
+from typing import Any, cast
 
 try:
     from importlib.resources.abc import Traversable  # Python >= 3.11
@@ -134,14 +134,14 @@ def _optional_string(value: Any, key: str, path: str) -> str | None:
         return None
     if isinstance(value, bool) or not isinstance(value, str):
         raise AgentError(f"'{key}' must be a string.", path=path)
-    return value
+    return cast(str, value)
 
 
 def _positive_integer(value: Any, key: str, path: str) -> int:
     """Validate and return a positive integer config value."""
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise AgentError(f"'{key}' must be a positive integer.", path=path)
-    return value
+    return cast(int, value)
 
 
 def _load_provider_params(
@@ -159,7 +159,7 @@ def _load_provider_params(
                 f"'provider_params.{name}' must be a string, number, or boolean.",
                 path=path,
             )
-        params[name] = param
+        params[name] = cast(ScalarValue, param)
     return params
 
 
