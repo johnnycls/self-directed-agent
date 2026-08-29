@@ -1,24 +1,26 @@
-"""LLM message assembly, memory loading, and message commit."""
+"""LLM message assembly and memory loading."""
 
 from typing import Any
 
-from amnesia_genius import display
 from amnesia_genius.config import global_path, read_text
-from amnesia_genius.history import Message, append_history
+from amnesia_genius.history import Message
 
 
 def truncate_middle(text: str, max_chars: int) -> str:
-    """Keep both ends of text when it exceeds the configured limit."""
+    """Keep both ends of text within the limit, joined by a middle separator."""
     if len(text) <= max_chars:
         return text
-    half = max_chars // 2
-    tail = text[-half:] if half else ""
-    return f"{text[:half]}\n...\n{tail}"
+    separator = "\n...\n"
+    body = max_chars - len(separator)
+    if body < 2:
+        return separator[:max_chars]
+    half = body // 2
+    return f"{text[: body - half]}{separator}{text[-half:]}"
 
 
-def _load_memory() -> str:
+def _load_memory(config_dir: str | None = None) -> str:
     """Read the agent's always-visible memory file (memory.md)."""
-    return read_text(global_path("memory.md"))
+    return read_text(global_path("memory.md", config_dir))
 
 
 def build_messages(
@@ -26,10 +28,11 @@ def build_messages(
     user_input: str,
     turn_messages: list[Message],
     max_context_message_chars: int,
+    config_dir: str | None = None,
 ) -> list[Message]:
     """Assemble the per-turn LLM context: system, user input, and turn messages."""
     messages: list[Message] = [
-        {"role": "system", "content": f"{system_prompt}\n\n{_load_memory()}"},
+        {"role": "system", "content": f"{system_prompt}\n\n{_load_memory(config_dir)}"},
         {"role": "user", "content": user_input},
     ]
     for message in turn_messages:
@@ -45,9 +48,3 @@ def build_messages(
             }
         messages.append(message)
     return messages
-
-
-def commit_message(message: Message) -> None:
-    """Persist a message to the log and render it to the terminal."""
-    append_history(message)
-    display.print_message(message)

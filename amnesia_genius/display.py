@@ -1,9 +1,12 @@
-"""Pretty terminal rendering of conversation messages."""
+"""Terminal rendering of kernel events (used by the CLI front-end)."""
 
+import ctypes
 import json
 import re
 import sys
 from typing import Any
+
+from amnesia_genius.events import AssistantMessage, Delta, ToolResult
 
 MAX_TOOL_LINES: int = 4
 
@@ -16,8 +19,6 @@ def _enable_ansi() -> None:
     """Enable ANSI escape processing on Windows consoles."""
     if sys.platform != "win32":
         return
-    import ctypes
-
     kernel32 = ctypes.windll.kernel32
     handle = kernel32.GetStdHandle(-11)
     mode = ctypes.c_uint32()
@@ -71,16 +72,6 @@ def _tool_command(call: dict[str, Any]) -> str:
     return str(raw)
 
 
-def _print_assistant(message: dict[str, Any]) -> None:
-    """Render an assistant message (text and tool commands) to the terminal."""
-    content: str = message.get("content") or ""
-    calls: list[dict[str, Any]] = message.get("tool_calls") or []
-    if content:
-        print(_bold(content))
-    for call in calls:
-        print(_dim(f"$ {_tool_command(call)}"))
-
-
 def _print_tool(content: str) -> None:
     """Render a tool result, highlighting the exit code and printing both ends of long output."""
     lines: list[str] = content.splitlines()
@@ -99,15 +90,39 @@ def _print_tool(content: str) -> None:
     half = MAX_TOOL_LINES // 2
     for line in body[:half]:
         print(_dim(f"  {line}"))
-    print(_dim(f"..."))
+    print(_dim("..."))
     for line in body[-half:]:
         print(_dim(f"  {line}"))
 
 
-def print_message(message: dict[str, Any]) -> None:
-    """Render a single message based on its role."""
-    role: str = message["role"]
-    if role == "assistant":
-        _print_assistant(message)
-    elif role == "tool":
-        _print_tool(message.get("content") or "")
+class TerminalRenderer:
+    """Renders kernel events to the terminal, tracking streamed text."""
+
+    def __init__(self) -> None:
+        self._streaming = False
+
+    def reset(self) -> None:
+        """Close a half-finished stream (e.g. after an interrupted turn)."""
+        if self._streaming:
+            self._streaming = False
+            print("\x1b[0m")
+
+    def render(self, event: Any) -> None:
+        """Render one kernel event."""
+        if isinstance(event, Delta):
+            if not self._streaming:
+                self._streaming = True
+                print("\x1b[1m", end="", flush=True)
+            print(event.text, end="", flush=True)
+        elif isinstance(event, AssistantMessage):
+            content: str = event.message.get("content") or ""
+            if self._streaming:
+                self._streaming = False
+                print("\x1b[0m")
+            elif content:
+                print(_bold(content))
+            calls: list[dict[str, Any]] = event.message.get("tool_calls") or []
+            for call in calls:
+                print(_dim(f"$ {_tool_command(call)}"))
+        elif isinstance(event, ToolResult):
+            _print_tool(event.message.get("content") or "")

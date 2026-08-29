@@ -22,7 +22,7 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("exit code: 0", result)
         self.assertNotIn("...", result)
 
-    async def test_tool_calls_run_concurrently_and_commit_in_order(self) -> None:
+    async def test_tool_calls_run_concurrently_and_return_in_order(self) -> None:
         calls = [
             {"id": "one", "function": {"arguments": '{"command":"one"}'}},
             {"id": "two", "function": {"arguments": '{"command":"two"}'}},
@@ -31,20 +31,21 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         all_started = asyncio.Event()
 
         async def fake_run(call: dict[str, object], *args: object) -> str:
-            observed.append(call["id"])
+            observed.append(str(call["id"]))
             if len(observed) == len(calls):
                 all_started.set()
             await all_started.wait()
             return f"result-{call['id']}"
 
         with patch("amnesia_genius.tools.run_tool_call", new=AsyncMock(side_effect=fake_run)):
-            with patch("amnesia_genius.tools.commit_message") as commit:
-                await asyncio.wait_for(execute_tool_calls(calls), timeout=1)
+            messages = await asyncio.wait_for(execute_tool_calls(calls), timeout=1)
 
         self.assertEqual(set(observed), {"one", "two"})
         self.assertEqual(
-            [call.args[0]["tool_call_id"] for call in commit.call_args_list],
-            ["one", "two"],
+            [message["tool_call_id"] for message in messages], ["one", "two"]
+        )
+        self.assertEqual(
+            [message["content"] for message in messages], ["result-one", "result-two"]
         )
 
 

@@ -1,23 +1,8 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import ModuleType
-from unittest.mock import MagicMock, patch
-
-
-def _stub_litellm() -> None:
-    """Provide a lightweight litellm stand-in so agent imports without the dep."""
-    if "litellm" in sys.modules:
-        return
-    fake = ModuleType("litellm")
-    fake.validate_environment = MagicMock(return_value={"keys_in_environment": True})
-    fake.acompletion = MagicMock()
-    sys.modules["litellm"] = fake
-
-
-_stub_litellm()
+from unittest.mock import patch
 
 import amnesia_genius.agent as agent
 from amnesia_genius import config
@@ -73,10 +58,6 @@ class ConfigTests(unittest.TestCase):
                 },
             ):
                 agent.validate_llm(cfg)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 if __name__ == "__main__":

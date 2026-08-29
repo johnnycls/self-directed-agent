@@ -5,16 +5,16 @@ import json
 import os
 import signal
 import subprocess
-from typing import Any, Sequence
+import sys
+from collections.abc import Sequence
+from typing import Any
 
-from amnesia_genius.message import Message, commit_message
-
-INTERRUPTED_RESULT: str = "error: interrupted by user"
+from amnesia_genius.history import Message
 
 
 def _process_options() -> dict[str, Any]:
     """Return subprocess options that start an independent process group."""
-    if os.name == "nt":
+    if sys.platform == "win32":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
     return {"start_new_session": True}
 
@@ -24,7 +24,7 @@ async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
         return
     try:
-        if os.name == "nt":
+        if sys.platform == "win32":
             killer = await asyncio.create_subprocess_exec(
                 "taskkill",
                 "/PID",
@@ -105,30 +105,15 @@ def _tool_message(call: dict[str, Any], content: str) -> Message:
 async def execute_tool_calls(
     tool_calls: Sequence[dict[str, Any]],
 ) -> list[Message]:
-    """Execute independent calls concurrently and commit results in call order."""
+    """Execute independent calls concurrently and return results in call order."""
     tasks = [
         asyncio.create_task(run_tool_call(call)) for call in tool_calls
     ]
     try:
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks)
     except BaseException:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-        for call in tool_calls:
-            commit_message(_tool_message(call, INTERRUPTED_RESULT))
         raise
-
-    first_error: BaseException | None = next(
-        (result for result in results if isinstance(result, BaseException)),
-        None,
-    )
-    tool_messages: list[Message] = []
-    for call, result in zip(tool_calls, results):
-        content = INTERRUPTED_RESULT if isinstance(result, BaseException) else result
-        message = _tool_message(call, content)
-        tool_messages.append(message)
-        commit_message(message)
-    if first_error is not None:
-        raise first_error
-    return tool_messages
+    return [_tool_message(call, result) for call, result in zip(tool_calls, results)]

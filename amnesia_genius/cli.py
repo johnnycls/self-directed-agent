@@ -1,38 +1,36 @@
-"""Command-line entry point."""
+"""Command-line entry point: one front-end over the kernel."""
 
+import argparse
 import asyncio
-import os
-import shlex
+import importlib.metadata
 import subprocess
 import sys
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from amnesia_genius import display
-from amnesia_genius.agent import agent_loop, validate_llm
-from amnesia_genius.config import (
-    Config,
-    ensure_global_files,
-    load_bash_tool,
-    load_config,
-    load_system_prompt,
-)
 from amnesia_genius.errors import AgentError
-from amnesia_genius.history import append_history, load_history
+from amnesia_genius.kernel import Agent
+
+try:
+    import readline  # noqa: F401 - enables up-arrow input history on POSIX
+except ImportError:  # platform dependent
+    pass
 
 T = TypeVar("T")
 
 
 def _open_in_editor(path: str) -> None:
-    """Open the given file in the user's editor (or a platform default)."""
-    editor: str | None = os.environ.get("EDITOR")
-    if editor:
-        subprocess.run([*shlex.split(editor), path], check=False)
-    elif sys.platform == "win32":
-        subprocess.run(["notepad.exe", path], check=False)
-    elif sys.platform == "darwin":
-        subprocess.run(["open", "-t", "-W", path], check=False)
-    else:
-        subprocess.run(["xdg-open", path], check=False)
+    """Open the given file with the platform's default opener."""
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["notepad.exe", path], check=False, shell=False)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", "-t", "-W", path], check=False, shell=False)
+        else:
+            subprocess.run(["xdg-open", path], check=False, shell=False)
+    except OSError as e:
+        print(f"Cannot open {path}: {e}. Edit it manually and re-run.")
 
 
 def _load_or_edit(loader: Callable[[], T]) -> T:
@@ -44,7 +42,7 @@ def _load_or_edit(loader: Callable[[], T]) -> T:
             raise
         print(
             f"Error: {e}\n"
-            f"Opening {e.path} in your editor to fix.\n"
+            f"Opening {e.path} to fix.\n"
             "Re-run amnesia-genius after saving.",
             file=sys.stderr,
         )
@@ -52,28 +50,54 @@ def _load_or_edit(loader: Callable[[], T]) -> T:
         sys.exit(1)
 
 
+async def _render_turn(
+    agent: Agent, user_input: str, renderer: display.TerminalRenderer
+) -> None:
+    """Run one turn and render its events to the terminal."""
+    async for event in agent.turn(user_input):
+        renderer.render(event)
+
+
 def _run() -> None:
-    """Seed files, then loop: read input, append it, run the agent turn."""
-    ensure_global_files()
-    try:
-        load_history()
-    except AgentError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-    config: Config = _load_or_edit(load_config)
-    _load_or_edit(lambda: validate_llm(config))
+    """Seed the workspace, then loop: read input, run the agent turn."""
+    agent = Agent()
+    agent.setup()
+    renderer = display.TerminalRenderer()
     display.clear()
     while True:
-        config = _load_or_edit(load_config)
-        system_prompt: str = _load_or_edit(load_system_prompt)
-        bash_tool: dict[str, Any] = _load_or_edit(load_bash_tool)
-        user_input: str = input("> ")
-        append_history({"role": "user", "content": user_input})
-        asyncio.run(agent_loop(config, bash_tool, system_prompt, user_input))
+        _load_or_edit(agent.reload)
+        try:
+            user_input: str = input("> ")
+        except KeyboardInterrupt:
+            print()
+            continue
+        try:
+            asyncio.run(_render_turn(agent, user_input, renderer))
+        except KeyboardInterrupt:
+            renderer.reset()
+            print()
+        except Exception as e:  # a failed turn returns to the prompt
+            renderer.reset()
+            print(f"Error: {e}", file=sys.stderr)
+
+
+def _version() -> str:
+    try:
+        return importlib.metadata.version("amnesia-genius")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
 
 
 def main() -> None:
     """Console-script entry point that runs the agent loop with error handling."""
+    parser = argparse.ArgumentParser(
+        prog="amnesia-genius",
+        description="A minimal self-directed agent that runs bash commands.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"amnesia-genius {_version()}"
+    )
+    parser.parse_args()
     try:
         _run()
     except (KeyboardInterrupt, EOFError):
@@ -81,7 +105,7 @@ def main() -> None:
     except AgentError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    except Exception as e:  # noqa: BLE001 - fail loudly but cleanly
+    except Exception as e:  # fail loudly but cleanly
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 

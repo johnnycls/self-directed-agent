@@ -4,10 +4,9 @@ import json
 import os
 import shutil
 from dataclasses import dataclass
+from importlib.abc import Traversable
 from importlib.resources import files
 from typing import Any
-
-from importlib.resources.abc import Traversable
 
 from amnesia_genius.errors import AgentError
 
@@ -42,9 +41,9 @@ def _packaged_data(name: str) -> Traversable:
     return files("amnesia_genius").joinpath("data", name)
 
 
-def global_path(filename: str) -> str:
+def global_path(filename: str, config_dir: str | None = None) -> str:
     """Return the absolute path of a global file in the config directory."""
-    return os.path.join(CONFIG_DIR, filename)
+    return os.path.join(config_dir or CONFIG_DIR, filename)
 
 
 def read_text(path: str) -> str:
@@ -69,11 +68,12 @@ def _read_json(path: str) -> Any:
         ) from e
 
 
-def ensure_global_files() -> None:
+def ensure_global_files(config_dir: str | None = None) -> None:
     """Create the config directory and seed packaged files that are missing."""
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+    directory: str = config_dir or CONFIG_DIR
+    os.makedirs(directory, exist_ok=True)
     for filename in GLOBAL_FILES:
-        path: str = global_path(filename)
+        path: str = global_path(filename, config_dir)
         if not os.path.exists(path):
             try:
                 shutil.copyfile(str(_packaged_data(filename)), path)
@@ -83,9 +83,9 @@ def ensure_global_files() -> None:
                 ) from e
 
 
-def load_config() -> Config:
+def load_config(config_dir: str | None = None) -> Config:
     """Load, validate, and return the agent configuration from config.json."""
-    path: str = global_path("config.json")
+    path: str = global_path("config.json", config_dir)
     raw_value: Any = _read_json(path)
     if not isinstance(raw_value, dict):
         raise AgentError("config.json must contain a JSON object.", path=path)
@@ -159,14 +159,14 @@ def _load_provider_params(
     return params
 
 
-def load_system_prompt() -> str:
+def load_system_prompt(config_dir: str | None = None) -> str:
     """Load the system prompt text from system_prompt.md."""
-    return read_text(global_path("system_prompt.md"))
+    return read_text(global_path("system_prompt.md", config_dir))
 
 
-def load_bash_tool() -> dict[str, Any]:
+def load_bash_tool(config_dir: str | None = None) -> dict[str, Any]:
     """Load and validate the bash tool schema from bash_tool.json."""
-    path: str = global_path("bash_tool.json")
+    path: str = global_path("bash_tool.json", config_dir)
     bash_tool: Any = _read_json(path)
     if not isinstance(bash_tool, dict):
         raise AgentError("bash_tool.json must contain a JSON object.", path=path)

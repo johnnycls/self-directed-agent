@@ -65,12 +65,11 @@ files in place rather than appending duplicates. Keep memory.md as an accurate
 index: update it whenever files are created, changed, renamed, or removed, and
 periodically clean stale entries.
 
-One exception: history.jsonl is the conversation log managed by the harness
-itself, it has a strict format the harness validates on startup. Leave it
-alone most of the time. You can read it to know the chat history but
-only modify it deliberately and rarely, never as routine memory management, 
-and always keep every line valid JSON afterwards. For anything else, write 
-to separate files instead.
+One exception: history.jsonl is the raw conversation log the harness appends
+to; the harness never reads it back, so you are its only reader. Read it when
+past context helps, but modify it deliberately and rarely, never as routine
+memory management, and keep every line valid JSON if you do. For anything
+else, write to separate files instead.
 
 ## memory.md is your always-visible memory
 
